@@ -27,6 +27,7 @@ There are two tables: one that keeps track of titles, and another that keeps tra
 
 #### luggage_counter
 Keeps track of the "luggage?" trigger
+
 field | description
 ------|------------
 id | auto-increment primary key
@@ -39,6 +40,7 @@ record | Seconds since the the previous violation
 
 ### lacy_bot
 Keeps track of titles
+
 field | description
 ------|------------
 id | auto-increment primary key
