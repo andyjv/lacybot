@@ -140,7 +140,9 @@ function getResponse($message){
 	$str = $message['text'];
 
 
-
+    // "Record" is the longest we've gone since triggering "luggage?"
+    // unfortunately the record is currently atrifically long, because there
+    // was a period where the bot was broken :(
 	if(strpos($str, "/record") === 0){
 		$db = new database();
 		$conn = $db->connect();
@@ -158,6 +160,7 @@ function getResponse($message){
 		return;
 	}
 
+    // "Shame" looks for the person who triggered "Luggage?" the most
 	if(strpos($str, "/shame") === 0){
 		$db = new database();
 		$conn = $db->connect();
@@ -166,6 +169,9 @@ function getResponse($message){
 		while($row = $result->fetch_assoc()){
 			$data[] = $row;
 		}
+        // hard-coded @sheppfox into the response,
+        // because he learned you could private-message the bot
+        // and artificially increase the violation count
 		apiRequest("sendMessage",
 			array(
 				'chat_id' => $chat_id,
@@ -176,6 +182,8 @@ function getResponse($message){
 		return;
 	}
 
+    //Checks to see how long its last been since
+    //someone triggered "luggage?"
 	if (strpos($str, "/luggage") === 0) {
 		apiRequest('sendChatAction',
 			array(
@@ -231,6 +239,7 @@ function getResponse($message){
 		return;
 	}
 
+    // Who was the last person to trigger "luggage?"?
 	if(strpos($str, "/blame") === 0){
 		$db = new database();
 		$conn = $db->connect();
@@ -290,6 +299,8 @@ function getResponse($message){
 		return;
 	}
 
+    //HARD CODED
+    //do not remove, do not change!
 	//who's a cub -> kova is
 	$re = "/(who).*(\\bcub\\b).*(\\?$)/i";
 	preg_match($re, $str, $matches);
@@ -445,7 +456,7 @@ function getResponse($message){
 
 	}
 
-
+    //Looks for the phrase "action packer" and mis-spellings
 	$re = "/(action packer|actionpacker|action packers|actionpackers)/i";
 	preg_match($re, $str, $matches);
 	if(isset($matches[1])){
@@ -456,6 +467,8 @@ function getResponse($message){
 				"reply_to_message_id" => $message_id
 			)
 		);
+        // FUN FACT:
+        //you can create artificial "typing" delays!
 		apiRequest('sendChatAction',
 			array(
 				'chat_id' => $chat_id,
@@ -472,7 +485,7 @@ function getResponse($message){
 		return;
 
 	}
-
+    //looks for high sierra mentions
 	$re = "/(high sierra)/i";
 	preg_match($re, $str, $matches);
 	if(isset($matches[1])){
@@ -486,6 +499,8 @@ function getResponse($message){
 		return;
 	}
 
+    //looks for a mis-spelling, but I don't think
+    // this has ever been triggered
 	$re = "/(seirra)/i";
 	preg_match($re, $str, $matches);
 	if(isset($matches[1])){
@@ -499,6 +514,10 @@ function getResponse($message){
 		return;
 	}
 
+    //looks for anyone talking about a pelican
+    //Here is an example of unpredicability:
+    // you could be having a conversation about birds,
+    // and accidentally trigger the bot!
 	$re = "/(pelican)/i";
 	preg_match($re, $str, $matches);
 	if(isset($matches[1])){
@@ -512,6 +531,9 @@ function getResponse($message){
 		return;
 	}
 
+    //if you directly ask the bot a question,
+    //she will respond, but does nothing.
+    //could be some potential here
 	$re = "/.*(@lacys_bot).*(\\?$)/i";
 	preg_match($re, $str, $matches);
 	if(isset($matches[1])){
