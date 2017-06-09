@@ -57,6 +57,7 @@ function secondsToTime($seconds) {
 	return implode(' ', $parts);
 }
 
+// Updates the record for when "Luggage" was last triggered
 function updateRecords($chat_id, $message_id){
 	$db = new database();
 	$conn = $db->connect();
@@ -258,6 +259,7 @@ function getResponse($message){
 		return;
 	}
 
+	// Look for Luggage questions
 	$re = "/\\b(luggage|tote|bag)\\b.*(\\?)$/i";
 	preg_match($re, $str, $matches);
 	if(isset($matches[1])&&($matches[2])){
