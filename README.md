@@ -18,6 +18,7 @@ First, thanks for being interested in helping me maintain this bot. Over time, t
 - The bot should be unpredictible
 - Users should never be able to see their "queue"
 - The question "Who is a Cub?" will always trigger a hardcoded response.
+- The bot should not be triggered too often. It should be surprising and unpredictable, not annoying.
 
 ## The Code
 The Lacy Bot is a Telegram Bot using the [Webhooks API](https://core.telegram.org/bots/api#getting-updates). As messages enter the telegram group, they are sent to the bot server, which then looks for key words (using RegEx) to decide how to proceed.
@@ -47,3 +48,8 @@ id | auto-increment primary key
 setting | Has one of two Values: **who** means this row is a finalized title. If its a **username**, that means this user has that title in the queue.
 key | the user the title is assigned to
 value | the title
+
+## More Information
+- Message me on Telegram: @andeswolf (twitter: @omnibahumut)
+- Visit the [Telegram Bot API](https://core.telegram.org/bots/api)
+- See the current list of titles at: http://kovawolf.com/lacy/titles
