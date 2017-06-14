@@ -35,11 +35,11 @@ define('SQL_GET_WHO', 'SELECT `key` FROM `'.DB_SCHEMA.'`.`lacy_bot` WHERE `setti
 define('SQL_GET_WHAT', 'SELECT * FROM `'.DB_SCHEMA.'`.`lacy_bot` WHERE `setting` = \'who\' and `key` = \'%s\' GROUP BY value;');
 define('SQL_GET_SETWHO','SELECT * FROM `'.DB_SCHEMA.'`.`lacy_bot` WHERE `key` IS NULL AND `setting` = \'%s\' LIMIT 1;');
 define('SQL_INS_LUGGAGE', 'INSERT INTO `'.DB_SCHEMA.'`.`luggage_counter` SET `date` = \'%s\', `message_id` = %d, `user_id` = %d, `username` = \'%s\';');
-define('SQL_INS_WHO', 'INSERT INTO `'.DB_SCHEMA.'`.`lacy_bot` SET `setting` = \'%s\' `key` = NULL, `value` = \'%s\';');
+define('SQL_INS_WHO', 'INSERT INTO `'.DB_SCHEMA.'`.`lacy_bot` SET `setting` = \'%s\', `key` = NULL, `value` = \'%s\';');
 define('SQL_INS_SETWHO', 'UPDATE `'.DB_SCHEMA.'`.`lacy_bot` SET `setting` = \'who\', `key` = \'%s\' WHERE `id` = %d;');
 define('REG_LUGGAGE', '/\b(luggage|tote|bag)\b.*\?$/i');
 define('REG_CUB', '/^who.*\bcub\b.*\?$/i');
-define('REG_WHO', '/^who(?:\'s|\sis)?\s+(.*)\?$/i');
+define('REG_WHO', '/(who.*)\\s.*(\\ba\\b|\\ban\\b|\\bgot\\b|\\bhas\\b|\\bthe\\b)\\s(.*)(\\?$)/i');
 define('REG_WHAT', '/^who\s+is\s+@([^\b]+)\?$/i');
 define('REG_LASTCOMMA', '/,\s([^,]+)$/');
 define('REG_USER', '/^@([^\b]+)/i');
@@ -55,7 +55,6 @@ $conn = $db->connect();
 
 $content = file_get_contents("php://input");
 $update = json_decode($content, true);
-
 if (isset($update["message"])) {
 	$message_id = $update['message']['message_id'];
 	$chat_id = $update['message']['chat']['id'];
@@ -131,7 +130,7 @@ function getRecord()
 	global $conn;
 	$result = $conn->query(SQL_GET_LUGGAGE_RECORD);
 	if ($conn->errno) {
-		sendErrorMessage('e02');
+		sendErrorMessage('e07');
 		throw new exception($conn->error);
 	}
 	$lastoccurance = false;
@@ -145,7 +144,7 @@ function getRecord()
 		$span = $lastoccurance->getTimeStamp() - $thisoccurance->getTimeStamp();
 		if ($span > $longestspan) {
 			$longestspan = $span;
-			$diff = 	$thisoccurance->diff($lastoccurance);
+            $diff = $thisoccurance->diff($lastoccurance);
 		}
 	}
 	$record = constructTimeSpan($diff);
@@ -168,7 +167,7 @@ function getShame()
 	// hard-coded @sheppfox into the response,
 	// because he learned you could private-message the bot
 	// and artificially increase the violation count
-	if (str_to_lower($violators[0]['username']) == 'sheppfox'){
+	if (strtolower($violators[0]['username']) == 'sheppfox'){
 		$violator_string = sprintf(STR_MSG_VIOLATIONS,$violators[1]['username'],$violators[1]['count']);
 		$violator_string .= CRLF.sprintf(STR_MSG_SHEPPFOX,$violators[1]['username']);
 	} else {
@@ -180,6 +179,7 @@ function getShame()
 // Gets how long its last been since someone triggered "luggage?"
 function getLuggage()
 {
+    global $conn;
 	$result = $conn->query(SQL_GET_LUGGAGE_LAST);
 	if ($conn->errno){
 		sendErrorMessage('e01');
@@ -223,7 +223,7 @@ function setLuggage()
 	);
 	$conn->query($query);
 	if ($conn->errno) {
-		sendErrorMessage('e02');
+		sendErrorMessage('e08');
 		throw new exception($conn->error);
 	}
 	return true;
@@ -249,7 +249,7 @@ function askWho($descriptor)
 	);
 	$result = $conn->query($query);
 	if($conn->errno){
-		sendErrorMessage('e02');
+		sendErrorMessage('e09');
 		throw new exception($conn->error);
 	}
 	return false;
@@ -259,7 +259,7 @@ function getWhat($who)
 {
 	global $conn;
 	$query = sprintf(SQL_GET_WHAT,$conn->real_escape_string($who));
-	$result = $conn->query();
+	$result = $conn->query($query);
 	if ($conn->errno) {
 		sendErrorMessage('e06');
 		throw new exception($conn->error);
@@ -282,10 +282,13 @@ function setWho($who)
 {
 	global $conn;
 	global $message_username;
+    global $message_id;
+    global $chat_id;
+
 	$query = sprintf(SQL_GET_SETWHO,$conn->real_escape_string($message_username));
 	$result = $conn->query($query);
 	if($conn->errno){
-		sendErrorMessage('e02');
+		sendErrorMessage('e10');
 		throw new exception($conn->error);
 	}
 	if($result->num_rows != 1) return false;
@@ -307,8 +310,6 @@ function setWho($who)
  */
 function getResponse()
 {
-	global $conn;
-	global $message_id;
 	global $chat_id;
 	global $message_string;
 
@@ -359,7 +360,7 @@ function getResponse()
 	// who's a ... title?
 	if (preg_match(REG_WHO, $message_string, $matches)) {
 		$descriptor = trim($matches[1]);
-		$who = askWho($descriptor);
+		$who = askWho(str_replace('@', '', $descriptor));
 		if ($who !== false) {
 			sendReply(sprintf(STR_MSG_WHO,$who,$descriptor));
 			return true;
@@ -379,7 +380,7 @@ function getResponse()
 	// Sets title to name
 	if (preg_match(REG_USER, $message_string, $matches)) {
 		$who = trim($matches[1]);
-		$what_string = setWhat($who);
+		$what_string = setWho($who);
 		sendReply($what_string);
 	}
 
@@ -527,6 +528,6 @@ function apiRequestJson($method, $parameters)
 function processMessage() {
 	// process incoming message
 	// Currently lacybot ignores anything that's not text
-	if (isset($message['text'])) getResponse();
+   getResponse();
 	return true;
 }
