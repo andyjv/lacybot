@@ -75,6 +75,8 @@ if (!$update) {
 	exit;
 }
 
+// write a message to a file on the server
+// default: log.txt
 function chatLog($message, $file = CFG_PATH_CHATLOG)
 {
 	$f = fopen($file, 'a');
@@ -234,6 +236,7 @@ function askWho($descriptor)
 	global $conn;
 	global $message_username;
 	$result = $conn->query(sprintf(SQL_GET_WHO,$conn->real_escape_string($descriptor)));
+	chatLog(sprintf(SQL_GET_WHO,$conn->real_escape_string($descriptor)));
 	if ($conn->errno) {
 		sendErrorMessage('e04');
 		throw new exception($conn->error);
@@ -247,11 +250,14 @@ function askWho($descriptor)
 		$conn->escape_string($message_username),
 		$conn->escape_string($descriptor)
 	);
+	chatLog(print_r($query,true));
 	$result = $conn->query($query);
 	if($conn->errno){
 		sendErrorMessage('e09');
+		chatLog(print_r($conn->error, true));
 		throw new exception($conn->error);
 	}
+	sendErrorMessage('e20');
 	return false;
 }
 
@@ -286,17 +292,21 @@ function setWho($who)
     global $chat_id;
 
 	$query = sprintf(SQL_GET_SETWHO,$conn->real_escape_string($message_username));
+	chatLog($query);
 	$result = $conn->query($query);
 	if($conn->errno){
 		sendErrorMessage('e10');
 		throw new exception($conn->error);
 	}
-	if($result->num_rows != 1) return false;
+	//nothing in the "who's a queue for this user
+	if($result->num_rows != 1){
+	    exit;
+    }
 	$row = $result->fetch_assoc();
 	$query = sprintf(SQL_INS_SETWHO,$conn->real_escape_string($who),$row['id']);
 	$result = $conn->query($query);
 	if($conn->errno){
-		sendErrorMessage($chat_id,$message_id,'e05');
+		sendErrorMessage('e05');
 		throw new exception($conn->error);
 	}
 	$what_string = sprintf(STR_MSG_SETWHO,$who,$row['value']);
@@ -350,7 +360,7 @@ function getResponse()
 		return true;
 	}
 
-    	// HARD CODED -- do not remove, do not change!
+    // HARD CODED -- do not remove, do not change!
 	// who's a cub -> kova is
 	if (preg_match(REG_CUB, $message_string)) {
 		sendReply(STR_MSG_CUB);
@@ -359,7 +369,7 @@ function getResponse()
 
 	// who's a ... title?
 	if (preg_match(REG_WHO, $message_string, $matches)) {
-		$descriptor = trim($matches[1]);
+		$descriptor = trim($matches[2]." ".$matches[3]);
 		$who = askWho(str_replace('@', '', $descriptor));
 		if ($who !== false) {
 			sendReply(sprintf(STR_MSG_WHO,$who,$descriptor));
@@ -430,12 +440,14 @@ function apiRequestWebhook($method, $parameters)
 {
 	if (!is_string($method)) {
 		error_log(STR_ERR_METHODNAME);
+		sendErrorMessage("e22");
 		return false;
 	}
 	if (!$parameters) {
 		$parameters = array();
 	} else if (!is_array($parameters)) {
 		error_log(STR_ERR_PARAMETERS);
+		sendErrorMessage("e23");
 		return false;
 	}
 	$parameters["method"] = $method;
