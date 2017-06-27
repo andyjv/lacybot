@@ -117,7 +117,7 @@ function sendReply($message)
 // Construct a string containing a human readable span of time
 function constructTimeSpan($diff)
 {
-	$format = "";
+	$format = '';
 	if ($diff->i > 0) $format = "%i minutes, and ".$format;
 	if ($diff->h > 0) $format = "%h hours, ".$format;
 	if ($diff->d > 0) $format = "%d days, ".$format;
@@ -138,16 +138,17 @@ function getRecord()
 	$lastoccurance = false;
 	$longestspan = 0;
 	while ($row = $result->fetch_assoc()) {
-		$thisoccurance = date_create_from_format('Y-m-d H:i:s',$row['date']);
+		$thisoccurance = new DateTime($row['date']);
 		if (!$lastoccurance) {
 			$lastoccurance = $thisoccurance;
 			continue;
 		}
-		$span = $lastoccurance->getTimeStamp() - $thisoccurance->getTimeStamp();
+		$span = $thisoccurance->getTimeStamp() - $lastoccurance->getTimeStamp();
 		if ($span > $longestspan) {
 			$longestspan = $span;
 			$diff = $thisoccurance->diff($lastoccurance);
 		}
+		$lastoccurance = $thisoccurance;
 	}
 	$record = constructTimeSpan($diff);
 	return sprintf(STR_MSG_RECORD,$record);
