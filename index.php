@@ -5,6 +5,9 @@ include_once('init.php');
 define('CRLF', "\r\n");
 define('CFG_PATH_CHATLOG', 'log.txt');
 define('CFG_PATH_ERRORLOG', 'error.txt');
+define('CFG_PATH_TMP','tmp/');
+define('CFG_PATH_TAG','tag.png');
+define('CFG_URL_PHOTO','https://domain.tld/path/to/tmp/');
 define('STR_ERR_UPDATE', 'Received Bad Update!');
 define('STR_ERR_DATABASE', '*cough, cough* I\'m not feeling well... :( @andeswolf [%s]');
 define('STR_ERR_METHODNAME', 'Method name must be a string'.CRLF);
@@ -27,6 +30,8 @@ define('STR_MSG_HS2','Uh, excuse me, it\'s \'Sierra\'.');
 define('STR_MSG_PC','Ugh.');
 define('STR_MSG_DEFAULT','I\'m sorry, I don\'t know what you just asked me :(');
 define('STR_MSG_CUB','@KovaWolf is a cub.');
+define('STR_MSG_HEY','Hey!');
+define('STR_MSG_PORN','Tag your porn!');
 define('SQL_GET_LUGGAGE_RECORD', 'SELECT `id`, `date` FROM `'.DB_SCHEMA.'`.`luggage_counter` ORDER BY `date`;');
 define('SQL_GET_LUGGAGE_VIOLATIONS', 'SELECT `username`, COUNT(username) as `count` FROM `'.DB_SCHEMA.'`.`luggage_counter` WHERE `username` IS NOT NULL GROUP BY `username` ORDER BY `count` DESC LIMIT 2;');
 define('SQL_GET_LUGGAGE_LAST', 'SELECT `date` FROM `'.DB_SCHEMA.'`.`luggage_counter` ORDER BY `date` DESC LIMIT 1;');
@@ -61,7 +66,8 @@ if (isset($update["message"])) {
 	$message_username = $update['message']['from']['username'];
 	$message_user_id = $update['message']['from']['id'];
 	$message_date = $update['message']['date'];
-	$message_string = $update['message']['text'];
+	$message_string = isset($update['message']['text']) ? $update['message']['text'] : '';
+	$message_photo = isset($update['message']['photo']);
 //	chatLog($content);
 	processMessage();
 } else {
@@ -171,10 +177,10 @@ function getShame()
 	// because he learned you could private-message the bot
 	// and artificially increase the violation count
 	if (strtolower($violators[0]['username']) == 'sheppfox'){
-		$violator_string = sprintf(STR_MSG_VIOLATIONS,$violators[1]['username'],$violators[1]['count']);
-		$violator_string .= CRLF.sprintf(STR_MSG_SHEPPFOX,$violators[0]['count']);
+		$violator_string = sprintf(STR_MSG_VIOLATIONS, $violators[1]['username'], $violators[1]['count']);
+		$violator_string .= CRLF.sprintf(STR_MSG_SHEPPFOX, $violators[0]['count']);
 	} else {
-		$violator_string = sprintf(STR_MSG_VIOLATIONS,$violators[0]['username'],$violators[0]['count']);	
+		$violator_string = sprintf(STR_MSG_VIOLATIONS, $violators[0]['username'], $violators[0]['count']);	
 	}
 	return $violator_string;
 }
@@ -206,7 +212,7 @@ function getBlame()
 		throw new exception($conn->error);
 	}
 	$row = $result->fetch_row();
-	return sprintf(STR_MSG_BLAME,$row[0]);
+	return sprintf(STR_MSG_BLAME, $row[0]);
 }
 
 function setLuggage()
@@ -236,7 +242,7 @@ function askWho($descriptor)
 {
 	global $conn;
 	global $message_username;
-	$result = $conn->query(sprintf(SQL_GET_WHO,$conn->real_escape_string($descriptor)));
+	$result = $conn->query(sprintf(SQL_GET_WHO, $conn->real_escape_string($descriptor)));
 	chatLog(sprintf(SQL_GET_WHO,$conn->real_escape_string($descriptor)));
 	if ($conn->errno) {
 		sendErrorMessage('e04');
@@ -280,7 +286,7 @@ function getWhat($who)
 		? substr($what_string, 0, -2)
 		: STR_MSG_DEFAULTWHAT;
 	$oxford = ($what_count == 2) ? '' : ',';
-	$what_string = preg_replace(REG_LASTCOMMA,$oxford.' and ${1}',$what_string);
+	$what_string = preg_replace(REG_LASTCOMMA, $oxford.' and ${1}', $what_string);
 	return $what_string;
 }
 
@@ -291,25 +297,25 @@ function setWho($who)
 	global $message_id;
 	global $chat_id;
 
-	$query = sprintf(SQL_GET_SETWHO,$conn->real_escape_string($message_username));
+	$query = sprintf(SQL_GET_SETWHO, $conn->real_escape_string($message_username));
 	chatLog($query);
 	$result = $conn->query($query);
-	if($conn->errno){
+	if ($conn->errno) {
 		sendErrorMessage('e10');
 		throw new exception($conn->error);
 	}
 	//nothing in the "who's a queue for this user
-	if($result->num_rows != 1){
+	if ($result->num_rows != 1) {
 	    exit;
 	}
 	$row = $result->fetch_assoc();
-	$query = sprintf(SQL_INS_SETWHO,$conn->real_escape_string($who),$row['id']);
+	$query = sprintf(SQL_INS_SETWHO, $conn->real_escape_string($who), $row['id']);
 	$result = $conn->query($query);
-	if($conn->errno){
+	if ($conn->errno) {
 		sendErrorMessage('e05');
 		throw new exception($conn->error);
 	}
-	$what_string = sprintf(STR_MSG_SETWHO,$who,$row['value']);
+	$what_string = sprintf(STR_MSG_SETWHO, $who, $row['value']);
 	return $what_string;
 }
 
@@ -434,6 +440,85 @@ function getResponse()
 		sendReply(STR_MSG_DEFAULT);
 		return true;
 	}
+	
+	return false;
+}
+
+// This function puts Willow in random locations on photos.
+function tagPorn ()
+{
+	global $update;
+	global $chat_id;
+	global $message_id;
+	// Do some basic checking on the input and pull the file_id
+	// from it if it looks okay.
+	if (isset($update['message']['photo']) && is_array($update['message']['photo'])) {
+		$bigphoto = array_pop($update['message']['photo']);
+		$photoid = $bigphoto['file_id'];
+	} else return false;
+	// Submit a getFile request to Telegram to get the photo URL
+	$file = apiRequest('getFile', array('file_id' => $photoid));
+	if (!isset($file['file_path'])) return false;
+	$file_path = $file['file_path'];
+	$file_url = API_FILE_URL.$file_path;
+	// Save the file to tmp
+	$file_name = $photoid.'.jpg';
+	$temp_path = CFG_PATH_TMP.$file_name;
+	file_put_contents($temp_path, file_get_contents($file_url));
+	// Determine image widths and heights and do a little math to
+	// determine how big to make willow's judging face
+	list($tag_width,$tag_height) = getimagesize(CFG_PATH_TAG);
+	list($image_width,$image_height) = getimagesize($temp_path);
+	$tag_image = imagecreatefrompng(CFG_PATH_TAG);
+	$base_image = imagecreatefromjpeg($temp_path);
+	$scale_height = intval($image_height / 4.5);
+	$tag_ratio = $scale_height / $tag_height;
+	$scale_width = intval($tag_width * $tag_ratio);
+	// This array contains potential placements for the tags.
+	// We split the image using the rule of thirds to determine
+	// the most likely places for something important to be located.
+	$placements = array(
+		array(1, 1), array(3, 1), array(5, 1),
+		array(2, 2), array(4, 2),
+		array(1, 3), array(3, 3), array(5, 3),
+		array(2, 4), array(4, 4),
+		array(1, 5), array(3, 5), array(5, 5)
+	);
+	// ... but we're not doing some crazy deepmind stuff here, so since
+	// we have no idea what the pictures are, we're just gonna throw it
+	// someplace random. :)
+	$placement_count = rand(1,6);
+	for ($p = 0; $p < $placement_count; $p++)
+	{
+		$tag_placement = $placements[rand(0, count($placements) - 1)];
+		$tag_x = intval(($tag_placement[0] / 6) * $image_width) - ($scale_width / 2);
+		$tag_y = intval(($tag_placement[1] / 6) * $image_height) - ($scale_height / 2);
+		imagecopyresampled(
+			$base_image,
+			$tag_image,
+			$tag_x,
+			$tag_y,
+			0,
+			0,
+			$scale_width,
+			$scale_height,
+			$tag_width,
+			$tag_height);
+	}
+	// Save the image and put it someplace the bot can get it.
+	imagejpeg($base_image,$temp_path,100);
+	// ... and let'em have it!
+	sendReply(STR_MSG_HEY);
+	apiRequest('sendChatAction', array('chat_id' => $chat_id, 'action' => 'typing'));
+	sleep(3);
+	$file_params = array(
+		'chat_id' => $chat_id,
+		'photo' => CFG_URL_PHOTO.$file_name,
+		'caption' => STR_MSG_PORN,
+		'reply_to_message_id' => $message_id
+	);
+	apiRequest('sendPhoto', $file_params);
+	return true;
 }
 
 function apiRequestWebhook($method, $parameters)
@@ -489,15 +574,13 @@ function exec_curl_request($handle)
 	return $response;
 }
 
-function apiRequest($method, $parameters)
+function apiRequest($method, $parameters = array())
 {
 	if (!is_string($method)) {
 		error_log(STR_ERR_METHODNAME);
 		return false;
 	}
-	if (!$parameters) {
-		$parameters = array();
-	} else if (!is_array($parameters)) {
+	if (!is_array($parameters)) {
 		error_log(STR_ERR_PARAMETERS);
 		return false;
 	}
@@ -537,9 +620,16 @@ function apiRequestJson($method, $parameters)
 	return exec_curl_request($handle);
 }
 
-function processMessage() {
-	// process incoming message
-	// Currently lacybot ignores anything that's not text
-	getResponse();
+// Process incoming message
+function processMessage()
+{
+	global $message_photo;
+	if ($message_photo) {
+		// Every photo uploaded has a 1/20 chance of being judged as porn.
+		$d20 = rand(1, 20);
+		if ($d20 == 1) tagPorn();
+	} else {
+		getResponse();
+	}
 	return true;
 }
