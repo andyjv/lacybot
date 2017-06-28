@@ -14,7 +14,7 @@ define('STR_MSG_VIOLATIONS', '@%s holds their head low, as they have %d violatio
 define('STR_MSG_SHEPPFOX', '(@Sheppfox is a cheater and has %s shames.)');
 define('STR_MSG_LUGGAGE', 'It has been: %s since the last violation.');
 define('STR_MSG_BLAME', 'You can blame @%s for the last violation.');
-define('STR_MSG_HIGHSIERRA','This is the %s @Fursuiting recommends: '.HIGH_SIERRA);
+define('STR_MSG_HIGHSIERRA','This is the luggage @Fursuiting recommends: '.HIGH_SIERRA);
 define('STR_MSG_WHO', '@%s is %s.');
 define('STR_MSG_DONTKNOW','I don\'t know; Who is %s?');
 define('STR_MSG_DEFAULTWHAT','mysterious');
@@ -117,7 +117,7 @@ function sendReply($message)
 // Construct a string containing a human readable span of time
 function constructTimeSpan($diff)
 {
-	$format = "";
+	$format = '';
 	if ($diff->i > 0) $format = "%i minutes, and ".$format;
 	if ($diff->h > 0) $format = "%h hours, ".$format;
 	if ($diff->d > 0) $format = "%d days, ".$format;
@@ -138,16 +138,17 @@ function getRecord()
 	$lastoccurance = false;
 	$longestspan = 0;
 	while ($row = $result->fetch_assoc()) {
-		$thisoccurance = date_create_from_format('Y-m-d H:i:s',$row['date']);
+		$thisoccurance = new DateTime($row['date']);
 		if (!$lastoccurance) {
 			$lastoccurance = $thisoccurance;
 			continue;
 		}
-		$span = $lastoccurance->getTimeStamp() - $thisoccurance->getTimeStamp();
+		$span = $thisoccurance->getTimeStamp() - $lastoccurance->getTimeStamp();
 		if ($span > $longestspan) {
 			$longestspan = $span;
-            $diff = $thisoccurance->diff($lastoccurance);
+			$diff = $thisoccurance->diff($lastoccurance);
 		}
+		$lastoccurance = $thisoccurance;
 	}
 	$record = constructTimeSpan($diff);
 	return sprintf(STR_MSG_RECORD,$record);
@@ -171,7 +172,7 @@ function getShame()
 	// and artificially increase the violation count
 	if (strtolower($violators[0]['username']) == 'sheppfox'){
 		$violator_string = sprintf(STR_MSG_VIOLATIONS,$violators[1]['username'],$violators[1]['count']);
-		$violator_string .= CRLF.sprintf(STR_MSG_SHEPPFOX,$violators[1]['username']);
+		$violator_string .= CRLF.sprintf(STR_MSG_SHEPPFOX,$violators[0]['count']);
 	} else {
 		$violator_string = sprintf(STR_MSG_VIOLATIONS,$violators[0]['username'],$violators[0]['count']);	
 	}
@@ -257,7 +258,6 @@ function askWho($descriptor)
 		chatLog(print_r($conn->error, true));
 		throw new exception($conn->error);
 	}
-	sendErrorMessage('e20');
 	return false;
 }
 
@@ -288,8 +288,8 @@ function setWho($who)
 {
 	global $conn;
 	global $message_username;
-    global $message_id;
-    global $chat_id;
+	global $message_id;
+	global $chat_id;
 
 	$query = sprintf(SQL_GET_SETWHO,$conn->real_escape_string($message_username));
 	chatLog($query);
@@ -301,7 +301,7 @@ function setWho($who)
 	//nothing in the "who's a queue for this user
 	if($result->num_rows != 1){
 	    exit;
-    }
+	}
 	$row = $result->fetch_assoc();
 	$query = sprintf(SQL_INS_SETWHO,$conn->real_escape_string($who),$row['id']);
 	$result = $conn->query($query);
@@ -360,7 +360,7 @@ function getResponse()
 		return true;
 	}
 
-    // HARD CODED -- do not remove, do not change!
+	// HARD CODED -- do not remove, do not change!
 	// who's a cub -> kova is
 	if (preg_match(REG_CUB, $message_string)) {
 		sendReply(STR_MSG_CUB);
@@ -540,6 +540,6 @@ function apiRequestJson($method, $parameters)
 function processMessage() {
 	// process incoming message
 	// Currently lacybot ignores anything that's not text
-   getResponse();
+	getResponse();
 	return true;
 }
